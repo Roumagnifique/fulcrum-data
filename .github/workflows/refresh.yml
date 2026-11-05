@@ -1,0 +1,46 @@
+name: Refresh Fulcrum
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      - name: Installer GDAL
+        run: sudo apt-get update && sudo apt-get install -y gdal-bin
+
+      - name: Télécharger et filtrer les arbres
+        env:
+          URL_ARBRES: ${{ secrets.DATASHARE_URL_ARBRES }}
+        run: |
+          rm -rf data && mkdir data
+          curl -sL "$URL_ARBRES" -o full_arbres.geojson
+          tr -d '\r' < projets.txt | while IFS='|' read -r nom rest || [ -n "$nom" ]; do
+            case "$nom" in ""|\#*) continue;; esac
+            IFS='|' read -ra parts <<< "$rest"
+            where=""
+            for p in "${parts[@]}"; do
+              champ="${p%%=*}"; val="${p#*=}"
+              val="${val//\'/\'\'}"
+              where="${where:+$where AND }\"$champ\" = '$val'"
+            done
+            if [ -z "$where" ]; then echo "Aucun critère pour $nom, ignoré"; continue; fi
+            ogr2ogr -f GeoJSON "data/${nom}_arbres.geojson" full_arbres.geojson \
+              -where "$where" || echo "Échec pour $nom"
+          done
+
+      - name: Publier les fichiers filtrés
+        run: |
+          git config user.name "bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add data
+          git diff --cached --quiet || (git commit -m "refresh" && git push)
