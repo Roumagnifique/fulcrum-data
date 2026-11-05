@@ -1,1 +1,3 @@
-TER_25255
+#Chaque ligne de projets.txt contient le nom du projet, puis autant de critères champ=valeur que tu veux, séparés par |
+TER_25255|dia_comma=TER_25255|dia_visite=-
+TER_25191|dia_comma=TER_25191
